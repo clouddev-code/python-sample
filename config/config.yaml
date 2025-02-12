@@ -1,0 +1,19 @@
+# Application settings
+app:
+    name: "My Batch Process"
+    version: "1.0.0"
+
+# Processing settings
+processing:
+    batch_size: 100
+    max_retries: 3
+    timeout: 300
+
+# Database settings (if needed)
+database:
+    host: "localhost"
+    port: 5432
+    name: "mydb"
+    user: "user"
+    # password should be stored in environment variables
+    password_env: "DB_PASSWORD"
