@@ -1,0 +1,45 @@
+function write_to_temp_file(content)
+    local file_path = os.tmpname()
+    local file = io.open(file_path, "w")
+    file:write(content)
+    file:close()
+    return file_path
+end
+
+function read_from_file(file_path)
+    local file = io.open(file_path, "r")
+    if not file then return nil end
+    local content = file:read("*all")
+    file:close()
+    return content
+end
+
+function sjis_to_utf8(tag, timestamp, record)
+    -- ログメッセージを取得
+    local log_message = record["log"]
+    if not log_message then
+        return 1, timestamp, record
+    end
+    
+    -- 一時ファイルに書き込み
+    local input_file = write_to_temp_file(log_message)
+    local output_file = os.tmpname()
+    
+    -- iconv で変換実行
+    local cmd = string.format("iconv -f SHIFT-JIS -t UTF-8 %s > %s", input_file, output_file)
+    local result = os.execute(cmd)
+    
+    if result then
+        -- 変換成功した場合は結果を読み込む
+        local utf8_content = read_from_file(output_file)
+        if utf8_content then
+            record["log"] = utf8_content
+        end
+    end
+    
+    -- 一時ファイルを削除
+    os.remove(input_file)
+    os.remove(output_file)
+    
+    return 1, timestamp, record
+end
