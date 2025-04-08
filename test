@@ -1,3 +1,116 @@
+clouddev-code: ec2からiam roleを利用して、クロスアカウントにあるS3にassmle roleでアクセスする方法をドキュメントから探してください
+
+GitHub Copilot: I'll search for AWS documentation on accessing S3 from EC2 using IAM roles across accounts with assume role. Let me find the relevant information for you.Based on the search results, I found several relevant AWS documentation pages about cross-account S3 access using IAM roles. Let me get more detailed information from the most relevant resources to explain how to configure EC2 to access S3 in another account using assume role.I'll continue searching for more detailed information about how to configure EC2 instances to access S3 buckets across AWS accounts using IAM roles. Let's get more specific documentation on this topic.Based on the AWS documentation search results, I found several relevant documents about cross-account access to S3 from EC2 using IAM roles. Let me gather more detailed information to provide you with a comprehensive answer.Let me continue gathering information about how to set up EC2 instances to access S3 buckets in a different AWS account using IAM roles. I'll focus specifically on the cross-account aspect.Let me continue gathering information about cross-account S3 access from EC2 using IAM roles. I'll look for more specific documentation about the cross-account aspect.ありがとうございます。収集した情報を基に、EC2インスタンスからクロスアカウントにあるS3バケットにIAMロールを利用してアクセスする方法について説明します。
+
+## EC2からクロスアカウントのS3にIAMロールを使用してアクセスする方法
+
+AWSドキュメントの内容をまとめると、以下のステップで実装できます：
+
+### 1. アカウント構成の理解
+
+- **アカウントA**: EC2インスタンスがあるアカウント（ソースアカウント）
+- **アカウントB**: アクセスしたいS3バケットがあるアカウント（ターゲットアカウント）
+
+### 2. アカウントBで実施する設定（ターゲットアカウント側の設定）
+
+1. **ロールの作成**：
+   - IAMコンソールで新しいロールを作成します
+   - 信頼ポリシーでアカウントAからのアクセスを許可します
+
+   ```json
+   {
+       "Version": "2012-10-17",
+       "Statement": [
+           {
+               "Effect": "Allow",
+               "Principal": {
+                   "AWS": "arn:aws:iam::<アカウントA_ID>:role/<EC2のロール名>"
+               },
+               "Action": "sts:AssumeRole"
+           }
+       ]
+   }
+   ```
+
+2. **適切なS3権限の設定**：
+   - 作成したロールに対して、必要なS3アクセス権限を持つポリシーをアタッチします
+   
+   ```json
+   {
+       "Version": "2012-10-17", 
+       "Statement": [
+           {
+               "Effect": "Allow",
+               "Action": [
+                   "s3:GetObject",
+                   "s3:PutObject",
+                   "s3:ListBucket"
+               ],
+               "Resource": [
+                   "arn:aws:s3:::<バケット名>",
+                   "arn:aws:s3:::<バケット名>/*"
+               ]
+           }
+       ]
+   }
+   ```
+
+3. **S3バケットポリシーの更新**（任意）：
+   - バケット側でもクロスアカウントアクセスを許可するポリシーを設定できます
+   
+   ```json
+   {
+       "Version": "2012-10-17",
+       "Statement": [
+           {
+               "Effect": "Allow",
+               "Principal": {
+                   "AWS": "arn:aws:iam::<アカウントA_ID>:role/<EC2のロール名>"
+               },
+               "Action": [
+                   "s3:GetObject",
+                   "s3:PutObject",
+                   "s3:ListBucket"
+               ],
+               "Resource": [
+                   "arn:aws:s3:::<バケット名>",
+                   "arn:aws:s3:::<バケット名>/*"
+               ]
+           }
+       ]
+   }
+   ```
+
+### 3. アカウントAで実施する設定（ソースアカウント側の設定）
+
+1. **EC2インスタンス用のIAMロールを作成**：
+   - EC2インスタンスに関連付けるIAMロールを作成します
+   - このロールには、他のアカウントのロールを引き受ける（assume）権限が必要です
+
+   ```json
+   {
+       "Version": "2012-10-17",
+       "Statement": [
+           {
+               "Effect": "Allow",
+               "Action": "sts:AssumeRole",
+               "Resource": "arn:aws:iam::<アカウントB_ID>:role/<アカウントBで作成したロール名>"
+           }
+       ]
+   }
+   ```
+
+2. **EC2インスタンスにロールをアタッチ**：
+   - 作成したロールをEC2インスタンスに関連付けます
+   - これにより、インスタンス内のアプリケーションはロールの権限を利用できます
+
+### 4. EC2インスタンス上でのロールの利用方法
+
+EC2インスタンスからクロスアカウントのS3バケットにアクセスするコードは以下のようになります：
+
+**AWS CLI を使用する場合**:
+
+```bash
 # ロールを一時的に引き受ける
 aws sts assume-role --role-arn "arn:aws:iam::<アカウントB_ID>:role/<アカウントBで作成したロール名>" --role-session-name "CrossAccountS3Access"
 
@@ -8,3 +121,41 @@ export AWS_SESSION_TOKEN="取得した SessionToken"
 
 # クロスアカウントのS3バケットにアクセス
 aws s3 ls s3://<バケット名>/
+```
+
+**AWS SDK for Python (Boto3) を使用する場合**:
+
+```python
+import boto3
+
+# 一時的な認証情報を取得するためのSTSクライアント
+sts_client = boto3.client('sts')
+
+# クロスアカウントのロールを引き受ける
+assumed_role = sts_client.assume_role(
+    RoleArn="arn:aws:iam::<アカウントB_ID>:role/<アカウントBで作成したロール名>",
+    RoleSessionName="CrossAccountS3Access"
+)
+
+# 一時的な認証情報を取得
+credentials = assumed_role['Credentials']
+
+# 取得した一時的な認証情報でS3クライアントを作成
+s3_client = boto3.client(
+    's3',
+    aws_access_key_id=credentials['AccessKeyId'],
+    aws_secret_access_key=credentials['SecretAccessKey'],
+    aws_session_token=credentials['SessionToken']
+)
+
+# クロスアカウントのS3バケットにアクセス
+response = s3_client.list_objects_v2(Bucket='<バケット名>')
+for obj in response.get('Contents', []):
+    print(obj['Key'])
+```
+
+このアプローチでは、EC2インスタンスはまず自身のインスタンスプロファイル（IAMロール）を使用し、そのロールを使ってSTSサービスを通じてクロスアカウントのロールを引き受け（assume）ます。これにより、クロスアカウントのS3バケットにアクセスするための一時的な認証情報を取得できます。
+
+重要なポイントは、「信頼ポリシー（Trust Policy）」と「権限ポリシー（Permission Policy）」を適切に設定することです。信頼ポリシーはロールを「誰が」引き受けられるかを決定し、権限ポリシーは引き受けた後に「何ができるか」を決定します。
+
+Similar code found with 2 license types
