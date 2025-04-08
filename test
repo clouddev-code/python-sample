@@ -1,0 +1,10 @@
+# ロールを一時的に引き受ける
+aws sts assume-role --role-arn "arn:aws:iam::<アカウントB_ID>:role/<アカウントBで作成したロール名>" --role-session-name "CrossAccountS3Access"
+
+# 取得した一時的な認証情報を環境変数に設定
+export AWS_ACCESS_KEY_ID="取得した AccessKeyId"
+export AWS_SECRET_ACCESS_KEY="取得した SecretAccessKey"
+export AWS_SESSION_TOKEN="取得した SessionToken"
+
+# クロスアカウントのS3バケットにアクセス
+aws s3 ls s3://<バケット名>/
